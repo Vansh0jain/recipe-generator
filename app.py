@@ -6,8 +6,11 @@ from datetime import datetime
 
 app = Flask(__name__)
 
-# For security, consider using environment variables instead of hardcoding
-API_KEY = "AIzaSyCw9eSC25XyNe6rWHJLqZgW3Fp4LpDZ6Jc"  # Better to use: os.environ.get("GEMINI_API_KEY")
+# Load API key from environment variable
+API_KEY = os.environ.get("GEMINI_API_KEY")
+if not API_KEY:
+    raise ValueError("GEMINI_API_KEY environment variable not set")
+
 API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={API_KEY}"
 
 def generate_recipe(ingredients, dietary_restrictions=None, cuisine=None, meal_type=None):

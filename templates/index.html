@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recipe Generator Chatbot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .chat-container {
+            max-height: 70vh;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            font-family: Inter;
+        }
+        .chat-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        .chat-container::-webkit-scrollbar-thumb {
+            background-color: #d1d5db;
+            border-radius: 4px;
+        }
+        .message {
+            max-width: 80%;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            animation: fadeIn 0.3s ease-in;
+            font-family: Inter;
+        }
+        .bot-message {
+            background-color: #f3f4f6;
+            border-left: 4px solid #10b981;
+            font-family: Inter;
+        }
+        .user-message {
+            background-color: #3b82f6;
+            color: white;
+            border-right: 4px solid #1e40af;
+            font-family: Inter;
+        }
+        .error-message {
+            background-color: #fee2e2;
+            border-left: 4px solid #dc2626;
+            color: #991b1b;
+        }
+        .typing-indicator {
+            display: none;
+            color: #6b7280;
+        }
+        .typing-indicator span {
+            animation: bounce 0.6s infinite alternate;
+        }
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes bounce {
+            to { transform: translateY(-4px); }
+        }
+        .recipe-content h1 {
+            font-weight: bold;
+            font-size: 1.5rem;
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+        }
+        .recipe-content h2 {
+            font-weight: bold;
+            font-size: 1.25rem;
+            margin-top: 0.75rem;
+            margin-bottom: 0.5rem;
+        }
+        .recipe-content h3 {
+            font-weight: bold;
+            font-size: 1.1rem;
+            margin-top: 0.5rem;
+            margin-bottom: 0.25rem;
+        }
+        .recipe-content ul {
+            list-style-type: disc;
+            margin-left: 1.5rem;
+            margin-bottom: 0.75rem;
+        }
+        .recipe-content ol {
+            list-style-type: decimal;
+            margin-left: 1.5rem;
+            margin-bottom: 0.75rem;
+        }
+        .recipe-content li {
+            margin-bottom: 0.25rem;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center min-h-screen p-4">
+    <div class="w-full max-w-3xl bg-white rounded-2xl shadow-2xl flex flex-col h-[90vh] overflow-hidden">
+        <div class="bg-gradient-to-r from-blue-600 to-green-500 text-white p-4 flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold flex items-center gap-2">
+                    <span>🍳 Recipe Generator</span>
+                </h1>
+                <p class="text-sm opacity-90">Chat with me to create delicious recipes!</p>
+            </div>
+            <button id="clearChat" class="bg-white text-blue-600 px-3 py-1 rounded-lg hover:bg-gray-100 text-sm">
+                Clear Chat
+            </button>
+        </div>
+        <div class="flex-1 p-6 chat-container" id="chatContainer">
+            <div class="message bot-message p-4 rounded-lg mb-4 recipe-content">
+                👋 Welcome to Recipe Generator! Send me a list of ingredients (e.g., chicken, rice, tomatoes), and I'll whip up a tasty recipe for you! 😊
+            </div>
+            <div class="typing-indicator p-4 mb-4" id="typingIndicator">
+                Bot is typing <span>.</span><span>.</span><span>.</span>
+            </div>
+        </div>
+        <div class="p-4 border-t bg-gray-50">
+            <div class="flex gap-2">
+                <input 
+                    type="text" 
+                    id="ingredientsInput" 
+                    placeholder="Enter ingredients (e.g., chicken, rice, tomatoes)" 
+                    class="flex-1 p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                <button 
+                    id="sendButton" 
+                    class="bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                >
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    </svg>
+                    Send
+                </button>
+            </div>
+        </div>
+    </div>
+    <script>
+        const chatContainer = document.getElementById('chatContainer');
+        const ingredientsInput = document.getElementById('ingredientsInput');
+        const sendButton = document.getElementById('sendButton');
+        const typingIndicator = document.getElementById('typingIndicator');
+        const clearChat = document.getElementById('clearChat');
+
+        function addMessage(message, sender, id) {
+            const messageDiv = document.createElement('div');
+            messageDiv.id = `message-${id}`;
+            messageDiv.className = `message p-4 rounded-lg mb-4 recipe-content ${
+                sender === 'bot' ? 'bot-message' : 
+                sender === 'error' ? 'error-message' : 'user-message ml-auto'
+            }`;
+            messageDiv.innerHTML = formatMessage(message);
+            chatContainer.insertBefore(messageDiv, typingIndicator);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function formatMessage(message) {
+            // Create a working copy of the message
+            let formattedMessage = message;
+            
+            // First, process Markdown headers
+            formattedMessage = formattedMessage
+                // Process headers in order of most specific to least
+                .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+                .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+                .replace(/^### (.+)$/gm, '<h3>$1</h3>');
+            
+            // Process lists - collect bullet points
+            let inBulletList = false;
+            let bulletListItems = [];
+            
+            // Process numbered lists
+            let inNumberedList = false;
+            let numberedListItems = [];
+            
+            // Split by lines to process lists properly
+            const lines = formattedMessage.split('\n');
+            const processedLines = [];
+            
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                
+                // Check for bullet list items (both - and * are supported)
+                const bulletMatch = line.match(/^[\-\*]\s+(.+)$/);
+                if (bulletMatch) {
+                    if (!inBulletList) {
+                        inBulletList = true;
+                        bulletListItems = [];
+                    }
+                    bulletListItems.push(bulletMatch[1]);
+                    continue;
+                }
+                
+                // Check for numbered list items
+                const numberedMatch = line.match(/^\d+\.\s+(.+)$/);
+                if (numberedMatch) {
+                    if (!inNumberedList) {
+                        inNumberedList = true;
+                        numberedListItems = [];
+                    }
+                    numberedListItems.push(numberedMatch[1]);
+                    continue;
+                }
+                
+                // If we were in a bullet list but this line isn't a bullet item
+                if (inBulletList) {
+                    processedLines.push('<ul>' + bulletListItems.map(item => `<li>${item}</li>`).join('') + '</ul>');
+                    inBulletList = false;
+                    bulletListItems = [];
+                }
+                
+                // If we were in a numbered list but this line isn't a numbered item
+                if (inNumberedList) {
+                    processedLines.push('<ol>' + numberedListItems.map(item => `<li>${item}</li>`).join('') + '</ol>');
+                    inNumberedList = false;
+                    numberedListItems = [];
+                }
+                
+                // Add the current line to the processed lines
+                processedLines.push(line);
+            }
+            
+            // Handle any remaining list items
+            if (inBulletList) {
+                processedLines.push('<ul>' + bulletListItems.map(item => `<li>${item}</li>`).join('') + '</ul>');
+            }
+            if (inNumberedList) {
+                processedLines.push('<ol>' + numberedListItems.map(item => `<li>${item}</li>`).join('') + '</ol>');
+            }
+            
+            // Join the processed lines
+            formattedMessage = processedLines.join('<br>');
+            
+            // Process bolding with asterisks
+            formattedMessage = formattedMessage.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+            
+            // Process italics with single asterisks
+            formattedMessage = formattedMessage.replace(/\*([^\*]+)\*/g, '<em>$1</em>');
+            
+            // Replace consecutive <br> tags with just one
+            formattedMessage = formattedMessage.replace(/<br><br><br>/g, '<br><br>');
+            
+            return formattedMessage;
+        }
+
+        async function sendMessage() {
+            const ingredients = ingredientsInput.value.trim();
+            if (!ingredients) {
+                addMessage('Please enter some ingredients!', 'error', Date.now());
+                return;
+            }
+
+            addMessage(ingredients, 'user', Date.now());
+            ingredientsInput.value = '';
+            sendButton.disabled = true;
+            sendButton.innerHTML = '<svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 12a8 8 0 018-8v8h8a8 8 0 01-8 8v-8H4z" /></svg> Cooking...';
+            typingIndicator.style.display = 'block';
+
+            try {
+                const response = await fetch('/generate_recipe', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ ingredients })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    addMessage(data.message, 'bot', data.id);
+                } else {
+                    addMessage(data.error || 'Something went wrong!', 'error', Date.now());
+                }
+            } catch (error) {
+                addMessage('Error: Could not connect to the server', 'error', Date.now());
+            } finally {
+                sendButton.disabled = false;
+                sendButton.innerHTML = `
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    </svg>
+                    Send
+                `;
+                typingIndicator.style.display = 'none';
+            }
+        }
+
+        function clearChatHistory() {
+            chatContainer.innerHTML = `
+                <div class="message bot-message p-4 rounded-lg mb-4 recipe-content">
+                    👋 Welcome to Recipe Generator! Send me a list of ingredients (e.g., chicken, rice, tomatoes), and I'll whip up a tasty recipe for you! 😊
+                </div>
+                <div class="typing-indicator p-4 mb-4" id="typingIndicator">
+                    Bot is typing <span>.</span><span>.</span><span>.</span>
+                </div>
+            `;
+            typingIndicator.style.display = 'none';
+        }
+
+        sendButton.addEventListener('click', sendMessage);
+        ingredientsInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !sendButton.disabled) {
+                sendMessage();
+            }
+        });
+        clearChat.addEventListener('click', clearChatHistory);
+    </script>
+</body>
+</html>
